@@ -120,3 +120,46 @@ homicide_df =
   nest(data = resolved)
 ```
 
+
+## Problem 2
+
+```{r}
+data_1 = read_csv("lda_data/con_01.csv")
+```
+
+```{r message = FALSE}
+path_df =
+  tibble(
+    path = list.files("lda_data")
+) %>% 
+  mutate(
+    path = str_c("lda_data/", path),
+    data = map(.x = path, ~read_csv(.x)),
+    group_status = str_sub(path, -10, -8),
+    group_status = case_when(
+      group_status == "con" ~ "control",
+      group_status == "exp" ~ "experimental"),
+    subject_id = str_sub(path, -10, -5)
+    ) %>% unnest() %>% 
+  pivot_longer(
+    week_1:week_8,
+    names_to = "week",
+    values_to = "observations"
+  ) %>% 
+  mutate(week = str_remove(week, "week_")) %>% 
+  select(-path) %>% 
+  relocate(subject_id, group_status, week, observations)
+```
+
+```{r}
+path_df %>% 
+  ggplot(aes(x = week , y = observations, group = subject_id, color = subject_id)) +
+  geom_line(alpha = .8)
+```
+
+## Problem 3
+
+```{r}
+
+```
+
