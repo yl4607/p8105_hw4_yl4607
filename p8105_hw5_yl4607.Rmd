@@ -154,12 +154,99 @@ path_df =
 ```{r}
 path_df %>% 
   ggplot(aes(x = week , y = observations, group = subject_id, color = subject_id)) +
-  geom_line(alpha = .8)
+  geom_line() +
+  labs(title = "Observations over time") 
 ```
+
+From the plot we see that while the observations for the experiment group increases with time, the observations for control group stays relatively stable. 
 
 ## Problem 3
 
 ```{r}
+set.seed(1)
 
+simulation_df =
+  tibble(mu = c(0:6)) %>%
+  mutate(
+    input_lists = map(.x = mu, ~rerun(5000, rnorm(30, mean = .x, sd = 5)))) %>% 
+  unnest(input_lists) %>% 
+    mutate(t_tests = map(.x = input_lists, ~ t.test(.x)),
+           tidy_tests = map(.x = t_tests, ~broom::tidy(.x))) %>% 
+  unnest(tidy_tests) %>% 
+  janitor::clean_names() %>% 
+  select(mu, estimate, p_value)
 ```
 
+From the plot below we can see that the power increases as the effect size increases. 
+
+```{r}
+graph_df =
+  simulation_df  %>% 
+  group_by(mu) %>% 
+  mutate(
+    decision = case_when(
+      p_value < 0.05 ~ "reject",
+      p_value  >= 0.05 ~"fail to reject"
+    ))
+
+graph_df %>% 
+  filter(decision == "reject") %>% 
+  summarize(power = n()/5000) %>% 
+  ggplot(aes(x = mu, y = power, fill = mu)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks = c(0:6)) 
+```
+
+```{r}
+p1 = 
+  graph_df %>% 
+  group_by(mu) %>% 
+  summarize(
+    avg_estimate = mean(estimate)
+  ) %>% 
+  ggplot(aes(x = mu, y = avg_estimate)) +
+  geom_line() + 
+  geom_point() +
+  scale_x_continuous(breaks = c(0:6)) +
+  scale_y_continuous(breaks = c(0:7)) 
+
+p2 =
+  graph_df %>% 
+  group_by(mu) %>% 
+  filter(decision == "reject") %>% 
+  summarize(
+    avg_rej_estimate = mean(estimate)
+  ) %>% 
+  ggplot(aes(x = mu, y = avg_rej_estimate)) +
+  geom_line() + 
+  geom_point() +
+  scale_x_continuous(breaks = c(0:6)) +
+  scale_y_continuous(breaks = c(0:7)) 
+```
+
+```{r}
+ggplot() +
+  geom_point( 
+    data = graph_df %>% 
+      group_by(mu) %>% 
+      summarize(avg_estimate = mean(estimate)),
+    aes(x = mu, y = avg_estimate, color = "average estimate of mu")
+    ) +
+  geom_point() + 
+  geom_path(
+    data = graph_df %>% 
+      group_by(mu) %>% 
+      summarize(avg_estimate = mean(estimate)),
+    aes(x = mu, y = avg_estimate, color = "average estimate of mu")
+  ) +
+  geom_path(
+    data = graph_df %>% 
+      group_by(mu) %>% 
+      filter(decision == "reject") %>% 
+      summarize(avg_rej_estimate = mean(estimate)),
+  aes(x = mu, y = avg_rej_estimate, color = "average estimate of mu with null rejected")
+  ) + 
+  scale_x_continuous(n.breaks = 7)
+```
+
+From the plot we can see that the sample average of estimated mu across test for which the null is rejected is approximately equal to the true value of mu when mu equals 0, 4, 5, 6. However, the sample average of estimated mu across test for which the null is rejected deviated greathly from the true value of mu when mu equals 1, 2, and 3. 
